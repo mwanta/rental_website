@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Availability | The Ocean Shire</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+    <a href="index.html" class="brand">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#FFC93C"/></svg>
+        The Ocean Shire
+    </a>
+    <nav>
+        <ul class="site-nav">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="calendar.html" class="active">Availability</a></li>
+            <li><a href="contact.html">Contact</a></li>
+        </ul>
+    </nav>
+</header>
+
+<section class="hero" style="padding-bottom: 12px;">
+    <h1>Our Availability</h1>
+    <p class="lede">Reach out directly for the best deals!</p>
+</section>
+
+<div class="calendar-wrap">
+    <div id="status">Loading...</div>
+    <div id="errors"></div>
+
+    <div class="legend">
+        <span><span class="swatch" style="background:#E4F5F0;"></span> Available</span>
+        <span><span class="swatch" style="background:#FFE3DF;"></span> Booked</span>
+    </div>
+
+    <div id="calendar"></div>
+</div>
+
+<div class="band">
+    <section class="section" style="text-align:center;">
+        <h2>See a date that works?</h2>
+        <p class="section-sub" style="margin-left:auto; margin-right:auto;">Reach out and we'll get back to you quickly to confirm details.</p>
+        <a href="contact.html" class="button secondary">Contact us</a>
+    </section>
+</div>
+
+<footer class="site-footer">
+    <p>The Ocean Shire · Have a question? <a href="contact.html">Get in touch</a></p>
+</footer>
+
+<script>
+    const API_URL = '/api/availability';
+    const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+    async function loadAvailability() {
+        const statusEl = document.getElementById('status');
+        const errorsEl = document.getElementById('errors');
+        const calendarEl = document.getElementById('calendar');
+
+        try {
+            const res = await fetch(API_URL);
+            const data = await res.json();
+
+            statusEl.textContent = `Last updated: ${new Date(data.lastUpdated).toLocaleString()}`;
+
+            const feedErrorEntries = Object.entries(data.feedErrors || {});
+            errorsEl.textContent = feedErrorEntries.length > 0
+                ? feedErrorEntries.map(([source, msg]) => `Heads up: couldn't sync ${source} (${msg})`).join(' · ')
+                : '';
+
+            renderCalendar(data.bookedRanges, calendarEl);
+        } catch (err) {
+            statusEl.textContent = "Couldn't load availability right now — please try again shortly.";
+            console.error(err);
+        }
+    }
+
+    function findBookingForDate(dateStr, bookedRanges) {
+        return bookedRanges.find(range => dateStr >= range.start && dateStr < range.end);
+    }
+
+    function renderCalendar(bookedRanges, container) {
+        container.innerHTML = '';
+
+        const today = new Date();
+        const monthsToShow = 3;
+
+        for (let m = 0; m < monthsToShow; m++) {
+            const monthDate = new Date(today.getFullYear(), today.getMonth() + m, 1);
+
+            const label = document.createElement('div');
+            label.className = 'month-label';
+            label.textContent = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+            container.appendChild(label);
+
+            WEEKDAYS.forEach(wd => {
+                const wdEl = document.createElement('div');
+                wdEl.className = 'weekday-label';
+                wdEl.textContent = wd;
+                container.appendChild(wdEl);
+            });
+
+            const firstDay = monthDate.getDay();
+            for (let i = 0; i < firstDay; i++) {
+                const filler = document.createElement('div');
+                filler.className = 'day empty';
+                container.appendChild(filler);
+            }
+
+            const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
+                const dateStr = dateObj.toISOString().split('T')[0];
+                const booking = findBookingForDate(dateStr, bookedRanges);
+
+                const dayEl = document.createElement('div');
+                dayEl.className = `day ${booking ? 'booked' : 'available'}`;
+                dayEl.textContent = d;
+                if (booking) {
+                    const sources = booking.sources ? booking.sources.join(', ') : (booking.source || 'booked');
+                    dayEl.title = `Booked (${sources})`;
+                }
+                container.appendChild(dayEl);
+            }
+        }
+    }
+
+    loadAvailability();
+</script>
+
+</body>
+</html>

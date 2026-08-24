@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact | The Ocean Shire</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+    <a href="index.html" class="brand">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#FFC93C"/></svg>
+        The Ocean Shire
+    </a>
+    <nav>
+        <ul class="site-nav">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="calendar.html">Availability</a></li>
+            <li><a href="contact.html" class="active">Contact</a></li>
+        </ul>
+    </nav>
+</header>
+
+<section class="hero" style="padding-bottom: 12px;">
+    <span class="hero-eyebrow">Usually reply within a day</span>
+    <h1>Say hello</h1>
+    <p class="lede">Questions about dates, pets, parking, or anything else; send a note and we'll get right back to you.</p>
+</section>
+
+<section class="section">
+    <div class="contact-grid">
+        <div>
+            <form id="contact-form">
+                <div class="form-group">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="dates">Dates you're interested in (optional)</label>
+                    <input type="text" id="dates" name="dates" placeholder="e.g. June 10–17">
+                </div>
+                <div class="form-group">
+                    <label for="message">Message</label>
+                    <textarea id="message" name="message" required></textarea>
+                </div>
+                <button type="submit" class="button">Send message</button>
+                <div id="form-status"></div>
+            </form>
+        </div>
+
+        <div class="contact-info">
+            <div class="card">
+                <span class="icon">📧</span>
+                <h3>Email</h3>
+                <p><a href="mailto:bmckrell@mac.com">bmckrell@mac.com</a></p>
+            </div>
+            <div class="card">
+                <span class="icon">📞</span>
+                <h3>Phone</h3>
+                <p>(858) 245-4659</p>
+            </div>
+            <div class="card">
+                <span class="icon">📍</span>
+                <h3>Location</h3>
+                <p>Exact address shared after booking is confirmed.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer class="site-footer">
+    <p>The Ocean Shire · <a href="calendar.html">Check availability</a></p>
+</footer>
+
+<script>
+    // No backend email-sending is set up yet, so this opens the visitor's
+    // own email client with the message pre-filled, addressed to you.
+    // Replace OWNER_EMAIL with your real address.
+    const OWNER_EMAIL = 'hello@saltandsandcottage.example';
+
+    document.getElementById('contact-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const name = document.getElementById('name').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const dates = document.getElementById('dates').value.trim();
+        const message = document.getElementById('message').value.trim();
+        const statusEl = document.getElementById('form-status');
+
+        if (!name || !email || !message) {
+            statusEl.textContent = 'Please fill in your name, email, and message.';
+            statusEl.style.color = '#FF6B5B';
+            return;
+        }
+
+        const subject = encodeURIComponent(`Inquiry from ${name}`);
+        const bodyLines = [
+            `Name: ${name}`,
+            `Email: ${email}`,
+            dates ? `Dates: ${dates}` : null,
+            '',
+            message,
+        ].filter(Boolean);
+        const body = encodeURIComponent(bodyLines.join('\n'));
+
+        window.location.href = `mailto:${OWNER_EMAIL}?subject=${subject}&body=${body}`;
+
+        statusEl.textContent = 'Opening your email app to send this...';
+        statusEl.style.color = '#0F8B8D';
+    });
+</script>
+
+</body>
+</html>
