@@ -34,6 +34,12 @@
     <div class="contact-grid">
         <div>
             <form id="contact-form">
+                <!-- Honeypot field: hidden from real visitors via CSS, but simple
+                     bots that auto-fill every field will trip it. -->
+                <div style="position:absolute; left:-9999px;" aria-hidden="true">
+                    <label for="website">Website</label>
+                    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+                </div>
                 <div class="form-group">
                     <label for="name">Name</label>
                     <input type="text" id="name" name="name" required>
@@ -64,7 +70,7 @@
             <div class="card">
                 <span class="icon">📞</span>
                 <h3>Phone</h3>
-                <p>(858) 245-4659</p>
+                <p><a href="tel:+18582454659">(858) 245-4659</a></p>
             </div>
             <div class="card">
                 <span class="icon">📍</span>
@@ -76,23 +82,20 @@
 </section>
 
 <footer class="site-footer">
-    <p>The Ocean Shire · <a href="calendar.html">Check availability</a></p>
+    <p>Salt & Sand Cottage · <a href="calendar.html">Check availability</a></p>
 </footer>
 
 <script>
-    // No backend email-sending is set up yet, so this opens the visitor's
-    // own email client with the message pre-filled, addressed to you.
-    // Replace OWNER_EMAIL with your real address.
-    const OWNER_EMAIL = 'hello@saltandsandcottage.example';
-
-    document.getElementById('contact-form').addEventListener('submit', function (e) {
+    document.getElementById('contact-form').addEventListener('submit', async function (e) {
         e.preventDefault();
 
         const name = document.getElementById('name').value.trim();
         const email = document.getElementById('email').value.trim();
         const dates = document.getElementById('dates').value.trim();
         const message = document.getElementById('message').value.trim();
+        const website = document.getElementById('website').value; // honeypot
         const statusEl = document.getElementById('form-status');
+        const submitBtn = e.target.querySelector('button[type="submit"]');
 
         if (!name || !email || !message) {
             statusEl.textContent = 'Please fill in your name, email, and message.';
@@ -100,20 +103,34 @@
             return;
         }
 
-        const subject = encodeURIComponent(`Inquiry from ${name}`);
-        const bodyLines = [
-            `Name: ${name}`,
-            `Email: ${email}`,
-            dates ? `Dates: ${dates}` : null,
-            '',
-            message,
-        ].filter(Boolean);
-        const body = encodeURIComponent(bodyLines.join('\n'));
+        submitBtn.disabled = true;
+        statusEl.textContent = 'Sending...';
+        statusEl.style.color = '#4A6572';
 
-        window.location.href = `mailto:${OWNER_EMAIL}?subject=${subject}&body=${body}`;
+        try {
+            const res = await fetch('/api/contact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, dates, message, website }),
+            });
 
-        statusEl.textContent = 'Opening your email app to send this...';
-        statusEl.style.color = '#0F8B8D';
+            const data = await res.json();
+
+            if (res.ok && data.ok) {
+                statusEl.textContent = "Thanks! Your message has been sent — we'll get back to you soon.";
+                statusEl.style.color = '#0F8B8D';
+                e.target.reset();
+            } else {
+                statusEl.textContent = data.error || 'Something went wrong. Please try again.';
+                statusEl.style.color = '#FF6B5B';
+            }
+        } catch (err) {
+            statusEl.textContent = "Couldn't reach the server. Please try again shortly.";
+            statusEl.style.color = '#FF6B5B';
+            console.error(err);
+        } finally {
+            submitBtn.disabled = false;
+        }
     });
 </script>
 

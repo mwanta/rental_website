@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const express = require('express');
 const ical = require('node-ical');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +30,50 @@ const FEEDS = [
 if (FEEDS.length === 0) {
     console.error('No iCal feed URLs configured. Add VRBO_ICAL_URL and/or AIRBNB_ICAL_URL to your .env file.');
     process.exit(1);
+}
+
+// ---- EMAIL (for the contact form) ----
+// Uses your own email account to send messages — free, since it's just
+// your existing Gmail (or other provider) account, not a paid service.
+// For Gmail: you must use an "App Password", not your normal password.
+// Google Account -> Security -> 2-Step Verification -> App passwords
+const EMAIL_PROVIDER = (process.env.EMAIL_PROVIDER || 'gmail').toLowerCase();
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_APP_PASSWORD = process.env.EMAIL_APP_PASSWORD;
+const CONTACT_TO_ADDRESS = process.env.CONTACT_TO_ADDRESS || EMAIL_USER;
+
+// Nodemailer's "service" shortcut only knows a fixed list of providers.
+// iCloud isn't one of them, so it (and any other provider) is configured
+// via explicit SMTP host/port instead.
+const PROVIDER_SMTP_SETTINGS = {
+    icloud: { host: 'smtp.mail.me.com', port: 587, secure: false },
+    outlook: { host: 'smtp.office365.com', port: 587, secure: false },
+};
+
+let mailTransporter = null;
+if (EMAIL_USER && EMAIL_APP_PASSWORD) {
+    if (EMAIL_PROVIDER === 'gmail') {
+        mailTransporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user: EMAIL_USER, pass: EMAIL_APP_PASSWORD },
+        });
+    } else if (PROVIDER_SMTP_SETTINGS[EMAIL_PROVIDER]) {
+        mailTransporter = nodemailer.createTransport({
+            ...PROVIDER_SMTP_SETTINGS[EMAIL_PROVIDER],
+            auth: { user: EMAIL_USER, pass: EMAIL_APP_PASSWORD },
+        });
+    } else if (EMAIL_PROVIDER === 'custom') {
+        mailTransporter = nodemailer.createTransport({
+            host: process.env.EMAIL_HOST,
+            port: Number(process.env.EMAIL_PORT) || 587,
+            secure: process.env.EMAIL_SECURE === 'true',
+            auth: { user: EMAIL_USER, pass: EMAIL_APP_PASSWORD },
+        });
+    } else {
+        console.error(`Unknown EMAIL_PROVIDER "${EMAIL_PROVIDER}". Use gmail, icloud, outlook, or custom.`);
+    }
+} else {
+    console.warn('Warning: EMAIL_USER / EMAIL_APP_PASSWORD not set — the contact form will not be able to send email.');
 }
 
 // How often to refresh the cached data, in milliseconds.
@@ -113,9 +158,13 @@ async function refreshAvailability() {
 // origin/port during development, can call this API)
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET');
+    res.header('Access-Control-Allow-Methods', 'GET, POST');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
     next();
 });
+
+// Parse JSON request bodies (needed for the contact form POST)
+app.use(express.json());
 
 // Serve the frontend (public/index.html) at the root URL
 app.use(express.static('public'));
@@ -134,6 +183,75 @@ app.get('/api/availability', (req, res) => {
 // Simple health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', lastUpdated, feedErrors: lastFeedErrors });
+});
+
+// Very light in-memory rate limiting: max 5 submissions per IP per hour.
+// Prevents the endpoint from being trivially spammed. For a small
+// personal site this is enough; a high-traffic site would want a
+// proper rate-limiting package or a spam-filtering service instead.
+const submissionLog = new Map(); // ip -> array of timestamps
+
+function isRateLimited(ip) {
+    const now = Date.now();
+    const windowMs = 60 * 60 * 1000; // 1 hour
+    const maxPerWindow = 5;
+
+    const timestamps = (submissionLog.get(ip) || []).filter((t) => now - t < windowMs);
+    timestamps.push(now);
+    submissionLog.set(ip, timestamps);
+
+    return timestamps.length > maxPerWindow;
+}
+
+// Receives the contact form submission and emails it to you.
+app.post('/api/contact', async (req, res) => {
+    const { name, email, dates, message, website } = req.body || {};
+
+    // Honeypot field: a real visitor never fills this in (it's hidden via
+    // CSS on the form), but simple bots that auto-fill every field will.
+    if (website) {
+        return res.status(200).json({ ok: true }); // pretend success, do nothing
+    }
+
+    if (!name || !email || !message) {
+        return res.status(400).json({ ok: false, error: 'Name, email, and message are required.' });
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+        return res.status(400).json({ ok: false, error: 'Please provide a valid email address.' });
+    }
+
+    const ip = req.ip;
+    if (isRateLimited(ip)) {
+        return res.status(429).json({ ok: false, error: 'Too many submissions. Please try again later.' });
+    }
+
+    if (!mailTransporter) {
+        console.error('Contact form submitted but email is not configured (EMAIL_USER / EMAIL_APP_PASSWORD missing).');
+        return res.status(500).json({ ok: false, error: 'Message could not be sent right now. Please try again later.' });
+    }
+
+    try {
+        await mailTransporter.sendMail({
+            from: `"Website contact form" <${EMAIL_USER}>`,
+            to: CONTACT_TO_ADDRESS,
+            replyTo: email,
+            subject: `New inquiry from ${name}`,
+            text: [
+                `Name: ${name}`,
+                `Email: ${email}`,
+                dates ? `Dates: ${dates}` : null,
+                '',
+                message,
+            ].filter(Boolean).join('\n'),
+        });
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Failed to send contact form email:', err.message);
+        res.status(500).json({ ok: false, error: 'Message could not be sent right now. Please try again later.' });
+    }
 });
 
 // ---- STARTUP ----

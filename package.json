@@ -1,14 +1,15 @@
 {
   "name": "rental-website",
   "version": "1.0.0",
-  "description": "Fetches a Vrbo/AirBnb iCal feed and serves booked date ranges as JSON",
+  "description": "Fetches Vrbo and Airbnb iCal feeds, serves merged booked date ranges as JSON, and emails contact form submissions",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "dotenv": "^17.4.2",
     "express": "^4.19.2",
-    "node-ical": "^0.20.1"
+    "node-ical": "^0.20.1",
+    "dotenv": "^16.4.5",
+    "nodemailer": "^6.9.14"
   }
 }
