@@ -25,8 +25,7 @@
 </header>
 
 <section class="hero" style="padding-bottom: 12px;">
-    <h1>Our Availability</h1>
-    <p class="lede">Reach out directly for the best deals!</p>
+    <h1>Check Availability</h1>
 </section>
 
 <div class="calendar-wrap">
@@ -36,6 +35,12 @@
     <div class="legend">
         <span><span class="swatch" style="background:#E4F5F0;"></span> Available</span>
         <span><span class="swatch" style="background:#FFE3DF;"></span> Booked</span>
+    </div>
+
+    <div class="month-nav">
+        <button id="prev-month" class="month-nav-btn" aria-label="Previous month">‹</button>
+        <div id="month-label" class="month-nav-label"></div>
+        <button id="next-month" class="month-nav-btn" aria-label="Next month">›</button>
     </div>
 
     <div id="calendar"></div>
@@ -57,10 +62,28 @@
     const API_URL = '/api/availability';
     const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+    let bookedRangesCache = [];
+
+    const MIN_MONTH = new Date();
+    MIN_MONTH.setDate(1);
+
+    const MAX_MONTH = new Date(MIN_MONTH);
+    MAX_MONTH.setMonth(MAX_MONTH.getMonth() + 6);
+
+    let currentMonth = new Date(MIN_MONTH);
+
+    function isSameMonth(a, b) {
+        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+    }
+
+    function updateNavButtons() {
+        document.getElementById('prev-month').disabled = isSameMonth(currentMonth, MIN_MONTH);
+        document.getElementById('next-month').disabled = isSameMonth(currentMonth, MAX_MONTH);
+    }
+
     async function loadAvailability() {
         const statusEl = document.getElementById('status');
         const errorsEl = document.getElementById('errors');
-        const calendarEl = document.getElementById('calendar');
 
         try {
             const res = await fetch(API_URL);
@@ -73,7 +96,8 @@
                 ? feedErrorEntries.map(([source, msg]) => `Heads up: couldn't sync ${source} (${msg})`).join(' · ')
                 : '';
 
-            renderCalendar(data.bookedRanges, calendarEl);
+            bookedRangesCache = data.bookedRanges;
+            renderMonth();
         } catch (err) {
             statusEl.textContent = "Couldn't load availability right now — please try again shortly.";
             console.error(err);
@@ -84,51 +108,57 @@
         return bookedRanges.find(range => dateStr >= range.start && dateStr < range.end);
     }
 
-    function renderCalendar(bookedRanges, container) {
+    function renderMonth() {
+        const container = document.getElementById('calendar');
+        const labelEl = document.getElementById('month-label');
         container.innerHTML = '';
 
-        const today = new Date();
-        const monthsToShow = 3;
+        labelEl.textContent = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-        for (let m = 0; m < monthsToShow; m++) {
-            const monthDate = new Date(today.getFullYear(), today.getMonth() + m, 1);
+        WEEKDAYS.forEach(wd => {
+            const wdEl = document.createElement('div');
+            wdEl.className = 'weekday-label';
+            wdEl.textContent = wd;
+            container.appendChild(wdEl);
+        });
 
-            const label = document.createElement('div');
-            label.className = 'month-label';
-            label.textContent = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-            container.appendChild(label);
-
-            WEEKDAYS.forEach(wd => {
-                const wdEl = document.createElement('div');
-                wdEl.className = 'weekday-label';
-                wdEl.textContent = wd;
-                container.appendChild(wdEl);
-            });
-
-            const firstDay = monthDate.getDay();
-            for (let i = 0; i < firstDay; i++) {
-                const filler = document.createElement('div');
-                filler.className = 'day empty';
-                container.appendChild(filler);
-            }
-
-            const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dateObj = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
-                const dateStr = dateObj.toISOString().split('T')[0];
-                const booking = findBookingForDate(dateStr, bookedRanges);
-
-                const dayEl = document.createElement('div');
-                dayEl.className = `day ${booking ? 'booked' : 'available'}`;
-                dayEl.textContent = d;
-                if (booking) {
-                    const sources = booking.sources ? booking.sources.join(', ') : (booking.source || 'booked');
-                    dayEl.title = `Booked (${sources})`;
-                }
-                container.appendChild(dayEl);
-            }
+        const firstDay = currentMonth.getDay();
+        for (let i = 0; i < firstDay; i++) {
+            const filler = document.createElement('div');
+            filler.className = 'day empty';
+            container.appendChild(filler);
         }
+
+        const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), d);
+            const dateStr = dateObj.toISOString().split('T')[0];
+            const booking = findBookingForDate(dateStr, bookedRangesCache);
+
+            const dayEl = document.createElement('div');
+            dayEl.className = `day ${booking ? 'booked' : 'available'}`;
+            dayEl.textContent = d;
+            if (booking) {
+                const sources = booking.sources ? booking.sources.join(', ') : (booking.source || 'booked');
+                dayEl.title = `Booked (${sources})`;
+            }
+            container.appendChild(dayEl);
+        }
+
+        updateNavButtons();
     }
+
+    document.getElementById('prev-month').addEventListener('click', () => {
+        if (isSameMonth(currentMonth, MIN_MONTH)) return;
+        currentMonth.setMonth(currentMonth.getMonth() - 1);
+        renderMonth();
+    });
+
+    document.getElementById('next-month').addEventListener('click', () => {
+        if (isSameMonth(currentMonth, MAX_MONTH)) return;
+        currentMonth.setMonth(currentMonth.getMonth() + 1);
+        renderMonth();
+    });
 
     loadAvailability();
 </script>
