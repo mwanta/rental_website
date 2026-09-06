@@ -7,9 +7,9 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "node-ical": "^0.20.1",
     "dotenv": "^16.4.5",
-    "nodemailer": "^6.9.14"
+    "express": "^4.19.2",
+    "node-ical": "^0.27.1",
+    "nodemailer": "^10.0.0"
   }
 }
